@@ -1,0 +1,169 @@
+diff --git a/app/Http/Controllers/Web/Auth/SocialAuthController.php b/app/Http/Controllers/Web/Auth/SocialAuthController.php
+index 607ba49..278528b 100644
+--- a/app/Http/Controllers/Web/Auth/SocialAuthController.php
++++ b/app/Http/Controllers/Web/Auth/SocialAuthController.php
+@@ -57,6 +57,10 @@ class SocialAuthController extends Controller
+      */
+     public function handleProviderCallback($provider)
+     {
++        if (request()->get('error')) {
++            return redirect('login')->withErrors(trans('app.invalid_social_auth'));
++        }
++
+         $socialUser = $this->getUserFromProvider($provider);
+ 
+         $user = $this->users->findBySocialId($provider, $socialUser->getId());
+diff --git a/app/Repositories/User/EloquentUser.php b/app/Repositories/User/EloquentUser.php
+index 98218af..46d8169 100644
+--- a/app/Repositories/User/EloquentUser.php
++++ b/app/Repositories/User/EloquentUser.php
+@@ -119,6 +119,10 @@ class EloquentUser implements UserRepository
+             $result->appends(['search' => $search]);
+         }
+ 
++        if ($status) {
++            $result->appends(['status' => $status]);
++        }
++
+         return $result;
+     }
+ 
+diff --git a/config/app.php b/config/app.php
+index 9af4810..34b3122 100644
+--- a/config/app.php
++++ b/config/app.php
+@@ -23,7 +23,7 @@ return [
+     | Vanguard Version
+     |--------------------------------------------------------------------------
+     */
+-    'version' => '3.0.0',
++    'version' => '3.0.1',
+ 
+     /*
+     |--------------------------------------------------------------------------
+diff --git a/resources/lang/de/app.php b/resources/lang/de/app.php
+index 9736a5c..6c7e46a 100644
+--- a/resources/lang/de/app.php
++++ b/resources/lang/de/app.php
+@@ -326,4 +326,5 @@ return [
+     'unknown' => 'Unbekannt',
+     'device' => 'Device',
+     'browser' => 'Browser',
++    'invalid_social_auth' => "Bei der Authentifizierung ist ein Fehler aufgetreten. Bitte versuche es erneut."
+ ];
+diff --git a/resources/lang/en/app.php b/resources/lang/en/app.php
+index 011bc75..4ac59f5 100644
+--- a/resources/lang/en/app.php
++++ b/resources/lang/en/app.php
+@@ -329,4 +329,5 @@ return [
+     'unknown' => 'Unknown',
+     'device' => 'Device',
+     'browser' => 'Browser',
++    'invalid_social_auth' => "Something went wrong during the authentication process. Please try again."
+ ];
+diff --git a/resources/lang/sr/app.php b/resources/lang/sr/app.php
+index 5bbb588..9980d52 100644
+--- a/resources/lang/sr/app.php
++++ b/resources/lang/sr/app.php
+@@ -333,4 +333,5 @@ return [
+     'unknown' => 'Nepoznato',
+     'device' => 'Uređaj',
+     'browser' => 'Pretraživač',
++    'invalid_social_auth' => "Došlo je do problema prilikom autentifikacije. Molimo pokušajte ponovo."
+ ];
+diff --git a/resources/views/layouts/app.blade.php b/resources/views/layouts/app.blade.php
+index e07bd9c..b9910c4 100644
+--- a/resources/views/layouts/app.blade.php
++++ b/resources/views/layouts/app.blade.php
+@@ -18,8 +18,8 @@
+     <meta name="msapplication-TileColor" content="#FFFFFF" />
+     <meta name="msapplication-TileImage" content="{{ url('assets/img/icons/mstile-144x144.png') }}" />
+ 
+-    <link media="all" type="text/css" rel="stylesheet" href="{{ mix('assets/css/vendor.css') }}">
+-    <link media="all" type="text/css" rel="stylesheet" href="{{ mix('assets/css/app.css') }}">
++    <link media="all" type="text/css" rel="stylesheet" href="{{ url(mix('assets/css/vendor.css')) }}">
++    <link media="all" type="text/css" rel="stylesheet" href="{{ url(mix('assets/css/app.css')) }}">
+ 
+     @yield('styles')
+ </head>
+@@ -38,7 +38,7 @@
+         </div>
+     </div>
+ 
+-    <script src="{{ mix('assets/js/vendor.js') }}"></script>
++    <script src="{{ url(mix('assets/js/vendor.js')) }}"></script>
+     <script src="{{ url('assets/js/as/app.js') }}"></script>
+     @yield('scripts')
+ </body>
+diff --git a/resources/views/user/partials/details.blade.php b/resources/views/user/partials/details.blade.php
+index 0f7dda1..5c360f0 100644
+--- a/resources/views/user/partials/details.blade.php
++++ b/resources/views/user/partials/details.blade.php
+@@ -29,7 +29,7 @@
+                 <input type="text"
+                        name="birthday"
+                        id='birthday'
+-                       value="{{ $edit ? $user->present()->birthday : '' }}"
++                       value="{{ $edit && $user->birthday ? $user->present()->birthday : '' }}"
+                        class="form-control" />
+             </div>
+         </div>
+diff --git a/resources/views/user/partials/row.blade.php b/resources/views/user/partials/row.blade.php
+index 74292be..fb47a71 100644
+--- a/resources/views/user/partials/row.blade.php
++++ b/resources/views/user/partials/row.blade.php
+@@ -1,12 +1,18 @@
+ <tr>
+     <td style="width: 40px;">
+-        <img
+-            class="rounded-circle img-responsive"
+-            width="40"
+-            src="{{ $user->present()->avatar }}"
+-            alt="{{ $user->present()->name }}">
++        <a href="{{ route('user.show', $user->id) }}">
++            <img
++                class="rounded-circle img-responsive"
++                width="40"
++                src="{{ $user->present()->avatar }}"
++                alt="{{ $user->present()->name }}">
++        </a>
++    </td>
++    <td class="align-middle">
++        <a href="{{ route('user.show', $user->id) }}">
++            {{ $user->username ?: trans('app.n_a') }}
++        </a>
+     </td>
+-    <td class="align-middle">{{ $user->username ?: trans('app.n_a') }}</td>
+     <td class="align-middle">{{ $user->first_name . ' ' . $user->last_name }}</td>
+     <td class="align-middle">{{ $user->email }}</td>
+     <td class="align-middle">{{ $user->created_at->format(config('app.date_format')) }}</td>
+diff --git a/resources/views/user/view.blade.php b/resources/views/user/view.blade.php
+index a542487..aeaf7bf 100644
+--- a/resources/views/user/view.blade.php
++++ b/resources/views/user/view.blade.php
+@@ -15,7 +15,7 @@
+ @section('content')
+ 
+ <div class="row">
+-    <div class="col-3">
++    <div class="col-lg-5 col-xl-4">
+         <div class="card">
+             <div class="card-body">
+                 <h5 class="card-title">
+@@ -68,14 +68,14 @@
+         </div>
+     </div>
+ 
+-    <div class="col-9">
++    <div class="col-lg-7 col-xl-8">
+         <div class="card">
+             <div class="card-body">
+                 <h5 class="card-title">
+                     @lang('app.latest_activity')
+ 
+                     @if (count($userActivities))
+-                        <small class="pull-right">
++                        <small class="float-right">
+                             <a href="{{ route('activity.user', $user->id) }}" class="edit"
+                                data-toggle="tooltip" data-placement="top" title="@lang('app.complete_activity_log')">
+                                 @lang('app.view_all')
